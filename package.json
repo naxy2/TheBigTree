@@ -1,0 +1,16 @@
+{
+  "name": "thebigtree",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Diego",
+  "license": "ISC",
+  "dependencies": {
+    "discord": "^0.8.2",
+    "discord.js": "^13.3.1",
+    "dotenv": "^10.0.0"
+  }
+}
