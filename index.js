@@ -1,5 +1,5 @@
 require('dotenv').config();
-const {Client, Intents, MessageActionRow, MessageButton, Message, MessageEmbed, MessageAttachment} = require('discord.js');  //importa discord.js
+const {Client, Intents, MessageActionRow, MessageButton, Message, MessageEmbed, MessageAttachment, MessageMentions, Emoji} = require('discord.js');  //importa discord.js
 const bot = new Client({intents: [Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });       //crea un bot
 const fs = require('fs');
 const request = require('request');
@@ -24,9 +24,10 @@ bot.on('messageCreate', msg => {
 
         let args = msg.content.substring(PREFIX.length).split(" ");
         while (args.indexOf('') != -1){args.splice(args.indexOf(''), 1);}
+        args[0] = args[0].toLowerCase();
 
         if (comandi[args[0]]){
-            comandi[args[0]](args.splice(0,1), msg);
+            comandi[args[0]](args.splice(1), msg);
         }
     }catch(e){
         console.log("Errore");
@@ -43,7 +44,7 @@ const comandi = {
             embeds:[
                 new MessageEmbed({
                     title: "Pong title",
-                    description: "Pong description"
+                    description: `Pong description <@!${msg.author.id}>`
                 })
             ],
             components: [
@@ -52,12 +53,12 @@ const comandi = {
                         new MessageButton({
                             label: "YES",
                             style: "SUCCESS",
-                            customId: "CIAO"
+                            customId: "YES"
                         }),
                         new MessageButton({
                             label: "NO",
                             style: "DANGER",
-                            customId: "CIAO2"
+                            customId: "NO"
                         })
                     ]
                 })
@@ -99,26 +100,122 @@ const comandi = {
                 new MessageAttachment(sfbuff, "output.png")
             ]
         });
+    },
+    "addfriend": async (args,msg)=>{
+        if (args[0] && args[0].match(MessageMentions.USERS_PATTERN)){
+            var target = await bot.users.fetch(args[0].match(/[0-9]+/)[0])
+            //console.log(target);
+            if (!target.bot && !target.system && !target.equals(msg.author)){
+                msg.channel.send({
+                    embeds:[
+                        {
+                            title: "Friend request",
+                            description: `${args[0]}!\nDo you want to be <@!${msg.author.id}>'s friend?`,
+                            color: "DARK_PURPLE"
+                        }
+                    ],
+                    components: [
+                        new MessageActionRow({
+                            components: [
+                                new MessageButton({
+                                    label: "YES",
+                                    style: "SUCCESS",
+                                    customId: "YES"
+                                }),
+                                new MessageButton({
+                                    label: "NO",
+                                    style: "DANGER",
+                                    customId: "NO"
+                                })
+                            ]
+                        })
+                    ]
+                });
+            }else{
+                msg.channel.send({
+                    embeds:[
+                        new MessageEmbed({
+                            title: "ERROR",
+                            description: "Maybe try adding someone else ^^\"",
+                            color: "RED"
+                        })
+                    ]
+                });
+            }
+        }else{
+            msg.channel.send({
+                embeds:[
+                    new MessageEmbed({
+                        title: "ERROR",
+                        description: "use: \`>addFriend @user\`",
+                        color: "RED"
+                    })
+                ]
+            });
+        }
     }
 }
 
+function updateInteraction(interaction){
+    interaction.update({
+        components: [
+            new MessageActionRow({
+                components: [
+                    new MessageButton({
+                        label: interaction.customId=="YES"?"YES":"   ",
+                        style: "SUCCESS",
+                        customId: "YES",
+                        disabled: true
+                    }),
+                    new MessageButton({
+                        label: interaction.customId=="NO"?"NO":"   ",
+                        style: "DANGER",
+                        customId: "NO",
+                        disabled: true
+                    })
+                ]
+            })
+        ]
+    });
+}
+function linkExists(source,target){
 
+}
+function userExists(user){
 
-
-
-
+}
 bot.on('interactionCreate', interaction => {
 	if (!interaction.isButton()) return;
-	console.log(interaction);
+
+    mentions = []
+    for (let o of interaction.message.embeds[0].description.matchAll(/<@!([0-9]+)>/g)){mentions.push(o[1])}
+    console.log(mentions)// /\[(.*?)\]/
+
+    if (interaction.user.id == mentions[0]){
+        updateInteraction(interaction)
+        if (interaction.customId=="YES"){
+            switch (interaction.message.embeds[0].title){
+                case "Friend request":
+                    if (linkExists(mentions[0],mentions[1])){
+                        
+                    }else{
+                        
+                    }
+                    break;
+            }
+        }else{
+
+        }
+    }else{
+        interaction.deferUpdate();
+    }
 });
 
 
-bot.login(process.env.botKey);
 bot.on('ready', () => {
     console.log("Avviato!");
+    input()
 });
-
-
 async function input(){
     readline.question("", answere => {
         if (answere=="stop"){
@@ -132,7 +229,8 @@ async function input(){
         }
     })
 }
-input()
+
+bot.login(process.env.botKey);
 
 /*
 {
