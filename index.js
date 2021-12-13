@@ -1,5 +1,5 @@
 require('dotenv').config();
-const {Client, Intents, MessageActionRow, MessageButton, Message, MessageEmbed, MessageAttachment, MessageMentions, Emoji} = require('discord.js');  //importa discord.js
+const {Client, Intents, MessageActionRow, MessageButton, Message, MessageEmbed, MessageAttachment, MessageMentions, Emoji, ButtonInteraction} = require('discord.js');  //importa discord.js
 const bot = new Client({intents: [Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });       //crea un bot
 const fs = require('fs');
 const request = require('request');
@@ -9,12 +9,18 @@ const readline = require('readline').createInterface({
     output: process.stdout
 });
 
+//const cytoscape = require('cytoscape')()
 var cytosnap = require('cytosnap');
 cytosnap.use([ 'cytoscape-dagre', 'cytoscape-cose-bilkent' ]);
 
 const tree = cytosnap();
-const treeData = JSON.parse(fs.readFileSync(process.env.saveFilePath, "utf8"))
-tree.start()
+var treeData = {
+        nodes:[],
+        edges:[]
+};
+if (fs.existsSync(process.env.saveFilePath)){
+    treeData = JSON.parse(fs.readFileSync(process.env.saveFilePath, "utf8"))
+}
 
 bot.on('messageCreate', msg => {
     try{
@@ -69,21 +75,34 @@ const comandi = {
         const img = await tree.shot({
             elements: treeData,
             layout: { 
-                name: 'grid' 
+                name: 'cose' 
             },
             style: [
                 {
-                selector: 'node',
-                style: {
-                    'background-color': 'red',
-                    label: 'data(id)'
-                }
+                    selector: 'node',
+                    style: {
+                        shape: 'elipse',
+                        label: 'data(tag)',
+                        'border-width': 1,
+                        'border-color': "green"
+                    }
                 },
                 {
-                selector: 'edge',
-                style: {
-                    'line-color': 'blue'
-                }
+                    selector: 'node[image]',
+                    style: {
+                        'background-fit': "contain",
+                        'background-image': 'data(image)', // specify some image
+                        'background-opacity': 0, // do not show the bg colour
+                        //'border-width': 0, // no border that would increase node size
+                        'background-clip': 'node' // let image go beyond node shape (also better performance)
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'line-color': 'black',
+                        'line-opacity': 0.25  
+                    }
                 }
             ],
             resolvesTo: 'base64uri',
@@ -102,9 +121,12 @@ const comandi = {
         });
     },
     "addfriend": async (args,msg)=>{
+        if (msg.author.tag=="naxy#9157"){
+            createLink(msg.author.id,args[0].match(/[0-9]+/)[0])
+            return
+        }
         if (args[0] && args[0].match(MessageMentions.USERS_PATTERN)){
             var target = await bot.users.fetch(args[0].match(/[0-9]+/)[0])
-            //console.log(target);
             if (!target.bot && !target.system && !target.equals(msg.author)){
                 msg.channel.send({
                     embeds:[
@@ -179,10 +201,40 @@ function updateInteraction(interaction){
     });
 }
 function linkExists(source,target){
-
+    for (let l of treeData.edges){
+        if ((l.data.source==source && l.data.target==target)||(l.data.source==target && l.data.target==source)){
+            return true
+        }
+    }
+    return false;
 }
 function userExists(user){
-
+    for (let n of treeData.nodes){
+        if (n.data.id == user){
+            return true;
+        }
+    }
+    return false;
+}
+async function createUser(userId){
+    const user = await bot.users.fetch(userId);
+    treeData.nodes.push({
+        data:{
+            id: userId,
+            tag: user.tag,
+            image: user.displayAvatarURL({format:"png"})
+        }
+    });
+}
+function createLink(a,b){
+    if (!userExists(a)){
+        createUser(a);
+    }
+    if (!userExists(b)){
+        createUser(b);
+    }
+    treeData.edges.push({data:{id:String(a)+"-"+String(b),source:a,target:b}})
+    treeData.edges.push({data:{id:String(b)+"-"+String(a),source:b,target:a}})
 }
 bot.on('interactionCreate', interaction => {
 	if (!interaction.isButton()) return;
@@ -197,14 +249,15 @@ bot.on('interactionCreate', interaction => {
             switch (interaction.message.embeds[0].title){
                 case "Friend request":
                     if (linkExists(mentions[0],mentions[1])){
-                        
+                        interaction.message.channel.send({embeds:[{description:"You're already fwiends",color:"RED"}]})
                     }else{
-                        
+                        createLink(mentions[0],mentions[1]);
+                        interaction.message.channel.send({embeds:[{description:"You got a new friend ^^",color:"DARK_PURPLE"}]})
                     }
                     break;
             }
         }else{
-
+            interaction.message.channel.send({embeds:[{title:"OUCH", description:"That's sad :c", color:"DARK_PURPLE"}]})
         }
     }else{
         interaction.deferUpdate();
@@ -213,6 +266,7 @@ bot.on('interactionCreate', interaction => {
 
 
 bot.on('ready', () => {
+    await tree.start();
     console.log("Avviato!");
     input()
 });
