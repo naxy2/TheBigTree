@@ -2,7 +2,6 @@ require('dotenv').config();
 const {Client, Intents, MessageActionRow, MessageButton, Message, MessageEmbed, MessageAttachment, MessageMentions, Emoji, ButtonInteraction} = require('discord.js');  //importa discord.js
 const bot = new Client({intents: [Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });       //crea un bot
 const fs = require('fs');
-const request = require('request');
 const PREFIX = process.env.prefix;
 const readline = require('readline').createInterface({
     input: process.stdin,
@@ -11,8 +10,6 @@ const readline = require('readline').createInterface({
 
 const cytoscape = require('cytoscape')
 var cytosnap = require('cytosnap');
-const Cytosnap = require('cytosnap');
-const { maxHeaderSize } = require('http');
 cytosnap.use([ 'cytoscape-dagre', 'cytoscape-cose-bilkent' ]);
 
 const tree = cytosnap();
@@ -54,6 +51,8 @@ async function inviaImmagine(elementi, msg){
             {
                 selector: 'node',
                 style: {
+                    width: 'data(size)',
+                    height: 'data(size)',
                     shape: 'elipse',
                     label: 'data(tag)',
                     'border-width': 1,
@@ -220,6 +219,14 @@ function updateInteraction(interaction){
         ]
     });
 }
+async function calcolaRank(){
+    const albero = cytoscape({elements:treeData});
+    const rank = albero.elements().pageRank().rank;
+    for (nodo of treeData.nodes){
+        nodo.data.rank = rank(`#${nodo.data.id}`);
+        nodo.data.size = 30+nodo.data.rank*200;
+    }
+}
 function linkExists(source,target){
     for (let l of treeData.edges){
         if ((l.data.source==source && l.data.target==target)||(l.data.source==target && l.data.target==source)){
@@ -261,7 +268,7 @@ bot.on('interactionCreate', interaction => {
 
     mentions = []
     for (let o of interaction.message.embeds[0].description.matchAll(/<@!([0-9]+)>/g)){mentions.push(o[1])}
-    console.log(mentions)// /\[(.*?)\]/
+    //console.log(mentions)// /\[(.*?)\]/
 
     if (interaction.user.id == mentions[0]){
         updateInteraction(interaction)
@@ -273,6 +280,7 @@ bot.on('interactionCreate', interaction => {
                     }else{
                         createLink(mentions[0],mentions[1]);
                         interaction.message.channel.send({embeds:[{description:"You got a new friend ^^",color:"DARK_PURPLE"}]})
+                        calcolaRank();
                     }
                     break;
             }
@@ -301,6 +309,11 @@ async function input(){
             tree.stop();
             bot.destroy();
         }else{
+            switch (answere){
+                case 'calcolaRank':
+                    console.log("Inizio ricalcolo");
+                    calcolaRank().then(()=>{console.log("Ricalcolato")});
+            }
             input()
         }
     })
