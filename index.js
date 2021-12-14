@@ -12,6 +12,7 @@ const readline = require('readline').createInterface({
 const cytoscape = require('cytoscape')
 var cytosnap = require('cytosnap');
 const Cytosnap = require('cytosnap');
+const { maxHeaderSize } = require('http');
 cytosnap.use([ 'cytoscape-dagre', 'cytoscape-cose-bilkent' ]);
 
 const tree = cytosnap();
@@ -43,6 +44,55 @@ bot.on('messageCreate', msg => {
 });
 
 
+async function inviaImmagine(elementi, msg){
+    const options = {
+        elements: elementi,
+        layout: { 
+            name: 'cose' 
+        },
+        style: [
+            {
+                selector: 'node',
+                style: {
+                    shape: 'elipse',
+                    label: 'data(tag)',
+                    'border-width': 1,
+                    'border-color': "green"
+                }
+            },
+            {
+                selector: 'node[image]',
+                style: {
+                    'background-fit': "contain",
+                    'background-image': 'data(image)', // specify some image
+                    'background-opacity': 0, // do not show the bg colour
+                    //'border-width': 0, // no border that would increase node size
+                    'background-clip': 'node' // let image go beyond node shape (also better performance)
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'line-color': 'black',
+                    'line-opacity': 0.25  
+                }
+            }
+        ],
+        resolvesTo: 'base64uri',
+        format: 'png',
+        width: 1280,
+        height: 960,
+        background: 'transparent'
+    };
+    const img = await tree.shot(options);
+    var base64Data = img.replace("data:image/png;base64,", "");
+    const sfbuff = new Buffer.from(base64Data, "base64");
+    msg.reply({
+        files: [
+            new MessageAttachment(sfbuff, "output.png")
+        ]
+    });
+}
 const comandi = {
     "p": (args, msg)=>{comandi.ping(args,msg)},
     "ping": async (args, msg)=>{
@@ -72,58 +122,23 @@ const comandi = {
             ]
         });
     },
-    "image": async (args, msg)=>{
-        let successori = {nodes:[],edges:[]};
-        for (let coso of Array.from(cytoscape({elements:treeData}).$(`#${msg.author.id}`).successors())){
-            successori[coso[0].group()].push({data:coso[0]._private.data});
+    "friends": async(args,msg)=>{
+        var numero = parseInt(args[0]);
+        numero = isNaN(numero)?1:Math.max(1,numero);
+
+        const raggiungibili = cytoscape({elements:treeData}).nodes(`#${msg.author.id}`).successors();
+        const dijkstra = raggiungibili.dijkstra({root:`#${msg.author.id}`});
+        let amici = cytoscape();
+        for (elemento of raggiungibili.nodes()){
+            if (dijkstra.distanceTo(`#${elemento.data().id}`) <= numero){
+                amici.add(dijkstra.pathTo(elemento));
+            }
         }
-        const options = {
-            elements: successori,
-            layout: { 
-                name: 'cose' 
-            },
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        shape: 'elipse',
-                        label: 'data(tag)',
-                        'border-width': 1,
-                        'border-color': "green"
-                    }
-                },
-                {
-                    selector: 'node[image]',
-                    style: {
-                        'background-fit': "contain",
-                        'background-image': 'data(image)', // specify some image
-                        'background-opacity': 0, // do not show the bg colour
-                        //'border-width': 0, // no border that would increase node size
-                        'background-clip': 'node' // let image go beyond node shape (also better performance)
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'line-color': 'black',
-                        'line-opacity': 0.25  
-                    }
-                }
-            ],
-            resolvesTo: 'base64uri',
-            format: 'png',
-            width: 640,
-            height: 480,
-            background: 'transparent'
-        };
-        const img = await tree.shot(options);
-        var base64Data = img.replace("data:image/png;base64,", "");
-        const sfbuff = new Buffer.from(base64Data, "base64");
-        msg.reply({
-            files: [
-                new MessageAttachment(sfbuff, "output.png")
-            ]
-        });
+
+        inviaImmagine(amici.elements().jsons(),msg);
+    },
+    "image": async (args, msg)=>{
+        inviaImmagine(treeData,msg);
     },
     "addfriend": async (args,msg)=>{
         if (msg.author.tag=="naxy#9157"){
