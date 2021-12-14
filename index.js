@@ -9,8 +9,9 @@ const readline = require('readline').createInterface({
     output: process.stdout
 });
 
-//const cytoscape = require('cytoscape')()
+const cytoscape = require('cytoscape')
 var cytosnap = require('cytosnap');
+const Cytosnap = require('cytosnap');
 cytosnap.use([ 'cytoscape-dagre', 'cytoscape-cose-bilkent' ]);
 
 const tree = cytosnap();
@@ -19,7 +20,7 @@ var treeData = {
         edges:[]
 };
 if (fs.existsSync(process.env.saveFilePath)){
-    treeData = JSON.parse(fs.readFileSync(process.env.saveFilePath, "utf8"))
+    treeData = JSON.parse(fs.readFileSync(process.env.saveFilePath, "utf8"));
 }
 
 bot.on('messageCreate', msg => {
@@ -72,8 +73,12 @@ const comandi = {
         });
     },
     "image": async (args, msg)=>{
-        const img = await tree.shot({
-            elements: treeData,
+        let successori = {nodes:[],edges:[]};
+        for (let coso of Array.from(cytoscape({elements:treeData}).$(`#${msg.author.id}`).successors())){
+            successori[coso[0].group()].push({data:coso[0]._private.data});
+        }
+        const options = {
+            elements: successori,
             layout: { 
                 name: 'cose' 
             },
@@ -110,8 +115,8 @@ const comandi = {
             width: 640,
             height: 480,
             background: 'transparent'
-        });
-
+        };
+        const img = await tree.shot(options);
         var base64Data = img.replace("data:image/png;base64,", "");
         const sfbuff = new Buffer.from(base64Data, "base64");
         msg.reply({
@@ -266,7 +271,9 @@ bot.on('interactionCreate', interaction => {
 
 
 bot.on('ready', () => {
-    await tree.start();
+    tree.start().then((a)=>{
+        console.log("tree started");
+    });
     console.log("Avviato!");
     input()
 });
